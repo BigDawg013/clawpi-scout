@@ -11,7 +11,7 @@ log = logging.getLogger("scout.health")
 
 class HealthMonitor:
     def __init__(self, config: dict, alerter):
-        self.url = config.get("url", "ws://100.75.53.90:18789")
+        self.url = config.get("url", "https://bigs-mac-mini.tail7b895b.ts.net")
         self.interval = config.get("health_interval", 60)
         self.timeout = config.get("timeout", 10)
         self.max_failures = config.get("max_failures", 3)
@@ -22,11 +22,10 @@ class HealthMonitor:
         self._last_ok = None
 
     async def check(self) -> bool:
-        http_url = self.url.replace("ws://", "http://").replace("wss://", "https://")
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    http_url, timeout=aiohttp.ClientTimeout(total=self.timeout)
+                    self.url, timeout=aiohttp.ClientTimeout(total=self.timeout)
                 ) as resp:
                     ok = resp.status < 500
                     if ok:

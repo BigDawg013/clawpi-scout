@@ -1,7 +1,7 @@
 # clawpi-scout configuration
 
 gateway:
-  url: "ws://100.75.53.90:18789"
+  url: "https://bigs-mac-mini.tail7b895b.ts.net"
   health_interval: 60          # seconds between health checks
   timeout: 10                  # seconds before a check is considered failed
   max_failures: 3              # consecutive failures before alerting
