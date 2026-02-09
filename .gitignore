@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+config/scout.yaml
+!config/scout.yaml.example

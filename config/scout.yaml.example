@@ -1,0 +1,30 @@
+# clawpi-scout configuration
+
+gateway:
+  url: "ws://100.75.53.90:18789"
+  health_interval: 60          # seconds between health checks
+  timeout: 10                  # seconds before a check is considered failed
+  max_failures: 3              # consecutive failures before alerting
+
+telegram:
+  bot_token: ""                # your Telegram bot token
+  chat_id: ""                  # your Telegram chat ID
+  alert_cooldown: 300          # seconds between repeat alerts for same issue
+
+watchers:
+  check_interval: 300          # seconds between watcher runs
+  targets: []
+  # Example:
+  # - name: "OpenClaw Status"
+  #   url: "https://your-app.vercel.app/api/health"
+  #   type: "json"             # json | text | status_code
+  #   notify_on: "change"      # change | error | always
+  #
+  # - name: "GitHub Repo"
+  #   url: "https://api.github.com/repos/BigDawg013/openclaw-setup/commits"
+  #   type: "json"
+  #   notify_on: "change"
+
+logging:
+  level: "INFO"                # DEBUG | INFO | WARNING | ERROR
+  file: "/var/log/clawpi-scout.log"
