@@ -10,7 +10,8 @@ echo "=== clawpi-scout cron installer ==="
 CRON_BRIEFING="0 8 * * * cd $SCOUT_DIR && $PYTHON -m scout.briefing >> /tmp/clawpi-scout-briefing.log 2>&1"
 
 # Install cron jobs (preserve existing, avoid duplicates)
-( (crontab -l 2>/dev/null || true) | grep -v "scout.briefing" ; echo "$CRON_BRIEFING") | crontab -
+EXISTING=$(crontab -l 2>/dev/null | grep -v "scout.briefing" || true)
+printf '%s\n%s\n' "$EXISTING" "$CRON_BRIEFING" | crontab -
 
 echo "Cron jobs installed:"
 crontab -l | grep scout
