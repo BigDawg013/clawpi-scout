@@ -12,7 +12,7 @@
 # The OpenClaw gateway exposed via Tailscale Serve.
 # The scout pings this URL to verify the system is alive.
 gateway:
-  url: "https://bigs-mac-mini.tail7b895b.ts.net"
+  url: "https://<your-hostname>.<tailnet-id>.ts.net"
   health_interval: 60        # seconds between health checks
   timeout: 10                # seconds before a check is considered failed
   max_failures: 3            # consecutive failures before alerting
@@ -40,7 +40,7 @@ watchers:
   #   notify_on: "change"    # change | error | always
   #
   # - name: "GitHub Commits"
-  #   url: "https://api.github.com/repos/BigDawg013/openclaw-setup/commits"
+  #   url: "https://api.github.com/repos/<your-username>/<your-repo>/commits"
   #   type: "json"
   #   notify_on: "change"
 

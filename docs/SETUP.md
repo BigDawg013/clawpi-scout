@@ -36,9 +36,9 @@ brew install --cask raspberry-pi-imager
 3. Choose OS → **Raspberry Pi OS (64-bit)** — Debian Bookworm/Trixie
 4. Choose storage → select your MicroSD card
 5. Click the **gear icon** for advanced options:
-   - **Set hostname**: `clawpi`
+   - **Set hostname**: `<pi-hostname>`
    - **Enable SSH**: Use password authentication
-   - **Set username**: `bigdawg` (or your preferred username)
+   - **Set username**: `<your-username>` (or your preferred username)
    - **Set password**: choose a strong password
    - **Configure Wi-Fi**: enter your SSID and password (if not using ethernet)
    - **Set locale**: your timezone
@@ -61,7 +61,7 @@ From your main computer:
 
 ```bash
 # Option A — if mDNS works on your network
-ping clawpi.local
+ping <pi-hostname>.local
 
 # Option B — scan the network (macOS)
 arp -a | grep -i "raspberry\|dc:a6\|e4:5f\|28:cd\|2c:cf\|d8:3a"
@@ -72,15 +72,15 @@ arp -a | grep -i "raspberry\|dc:a6\|e4:5f\|28:cd\|2c:cf\|d8:3a"
 ### 2.2 SSH in
 
 ```bash
-ssh bigdawg@<PI_IP_ADDRESS>
-# Example: ssh bigdawg@192.168.1.50
+ssh <your-username>@<PI_IP_ADDRESS>
+# Example: ssh <your-username>@<PI_LOCAL_IP>
 ```
 
 Accept the fingerprint on first connection. You should see:
 
 ```
-Linux clawpi 6.12.x+rpt-rpi-v8 #1 SMP PREEMPT Debian ... aarch64
-bigdawg@clawpi:~$
+Linux <pi-hostname> 6.12.x+rpt-rpi-v8 #1 SMP PREEMPT Debian ... aarch64
+<your-username>@<pi-hostname>:~$
 ```
 
 ### 2.3 Update the system
@@ -118,8 +118,8 @@ tailscale status
 You should see both devices:
 
 ```
-100.x.x.x  clawpi         you@  linux  -
-100.x.x.x  bigs-mac-mini  you@  macOS  idle
+100.x.x.x  <pi-hostname>         you@  linux  -
+100.x.x.x  <mac-mini-hostname>  you@  macOS  idle
 ```
 
 ### 3.4 Test connectivity
@@ -132,7 +132,7 @@ ping -c 3 <MAC_MINI_TAILSCALE_IP>
 You can now SSH over Tailscale from anywhere:
 
 ```bash
-ssh bigdawg@<CLAWPI_TAILSCALE_IP>
+ssh <your-username>@<CLAWPI_TAILSCALE_IP>
 ```
 
 ---
@@ -143,8 +143,8 @@ ssh bigdawg@<CLAWPI_TAILSCALE_IP>
 
 ```bash
 cd ~
-git clone https://github.com/BigDawg013/clawpi-scout.git
-cd clawpi-scout
+git clone https://github.com/<your-username>/<pi-hostname>-scout.git
+cd <pi-hostname>-scout
 ```
 
 ### 4.2 Run the install script
@@ -174,14 +174,14 @@ Fill in:
 ### 4.4 Start the scout
 
 ```bash
-sudo systemctl start clawpi-scout
-sudo systemctl status clawpi-scout
+sudo systemctl start <pi-hostname>-scout
+sudo systemctl status <pi-hostname>-scout
 ```
 
 ### 4.5 Check logs
 
 ```bash
-journalctl -u clawpi-scout -f
+journalctl -u <pi-hostname>-scout -f
 ```
 
 ---
@@ -193,7 +193,7 @@ journalctl -u clawpi-scout -f
 The scout should immediately start pinging the gateway. Check logs:
 
 ```bash
-journalctl -u clawpi-scout --since "1 minute ago"
+journalctl -u <pi-hostname>-scout --since "1 minute ago"
 ```
 
 ### 5.2 Test Telegram alert
@@ -210,13 +210,13 @@ Add a test URL to `config/scout.yaml` and verify the scout detects changes.
 
 | Command | What it does |
 |---------|-------------|
-| `sudo systemctl start clawpi-scout` | Start the scout |
-| `sudo systemctl stop clawpi-scout` | Stop the scout |
-| `sudo systemctl restart clawpi-scout` | Restart after config changes |
-| `sudo systemctl status clawpi-scout` | Check if running |
-| `journalctl -u clawpi-scout -f` | Follow live logs |
+| `sudo systemctl start <pi-hostname>-scout` | Start the scout |
+| `sudo systemctl stop <pi-hostname>-scout` | Stop the scout |
+| `sudo systemctl restart <pi-hostname>-scout` | Restart after config changes |
+| `sudo systemctl status <pi-hostname>-scout` | Check if running |
+| `journalctl -u <pi-hostname>-scout -f` | Follow live logs |
 | `tailscale status` | Check Tailscale connection |
-| `tailscale ping bigs-mac-mini` | Ping Mac Mini via Tailscale |
+| `tailscale ping <mac-mini-hostname>` | Ping Mac Mini via Tailscale |
 
 ---
 
@@ -225,13 +225,13 @@ Add a test URL to `config/scout.yaml` and verify the scout detects changes.
 ### Pi can't reach Mac Mini
 ```bash
 tailscale status               # Both devices listed?
-tailscale ping bigs-mac-mini   # Direct connectivity?
+tailscale ping <mac-mini-hostname>   # Direct connectivity?
 curl http://<MAC_MINI_TAILSCALE_IP>:18789  # Gateway responding?
 ```
 
 ### Scout won't start
 ```bash
-journalctl -u clawpi-scout --no-pager -n 50   # Check error logs
+journalctl -u <pi-hostname>-scout --no-pager -n 50   # Check error logs
 python3 -m scout.main                          # Run manually to see errors
 ```
 

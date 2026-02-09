@@ -1,6 +1,6 @@
 # clawpi-scout
 
-Raspberry Pi scout node for [OpenClaw](https://github.com/BigDawg013/openclaw-setup) — health monitoring, web watchers, and Telegram alerting for a multi-agent AI system.
+Raspberry Pi scout node for [OpenClaw](https://github.com/your-username/openclaw-setup) — health monitoring, web watchers, and Telegram alerting for a multi-agent AI system.
 
 ## What is this?
 
@@ -17,7 +17,7 @@ A lightweight always-on daemon running on a Raspberry Pi that acts as a **scout*
 
 ```
 ┌──────────────────────────────────────────┐
-│  Mac Mini · bigs-mac-mini                │
+│  Mac Mini · <mac-mini-hostname>          │
 │  ┌────────────────────────────────────┐  │
 │  │ OpenClaw Gateway                   │  │
 │  │ ws://127.0.0.1:18789              │  │
@@ -28,12 +28,12 @@ A lightweight always-on daemon running on a Raspberry Pi that acts as a **scout*
 │  └────────────────────────────────────┘  │
 │                    │                      │
 │  Tailscale Serve   │                      │
-│  https://bigs-mac-mini.tail*.ts.net      │
+│  https://<hostname>.<tailnet>.ts.net     │
 └────────────────────┬─────────────────────┘
                      │ Tailscale (encrypted)
 ┌────────────────────┴─────────────────────┐
-│  Raspberry Pi · clawpi                    │
-│  100.107.226.78                           │
+│  Raspberry Pi · <pi-hostname>            │
+│  <pi-tailscale-ip>                       │
 │  ┌────────────────────────────────────┐  │
 │  │ clawpi-scout daemon                │  │
 │  │                                    │  │
@@ -43,7 +43,7 @@ A lightweight always-on daemon running on a Raspberry Pi that acts as a **scout*
 │  │ 🔔 Telegram alerts   (on events)   │  │
 │  └────────────────────────────────────┘  │
 │                    │                      │
-│            @clawpi_scout_bot              │
+│            @your_scout_bot               │
 │               (Telegram)                  │
 └──────────────────────────────────────────┘
 ```
@@ -81,7 +81,7 @@ clawpi-scout/
 
 ```bash
 # On the Raspberry Pi
-git clone https://github.com/BigDawg013/clawpi-scout.git
+git clone https://github.com/<your-username>/clawpi-scout.git
 cd clawpi-scout
 
 # Install daemon + systemd service
@@ -89,7 +89,7 @@ bash scripts/install.sh
 
 # Configure
 cp config/scout.yaml.example config/scout.yaml
-nano config/scout.yaml          # Add your tokens, targets
+nano config/scout.yaml          # Add your tokens and targets
 
 # Start
 sudo systemctl start clawpi-scout
@@ -160,5 +160,5 @@ See [docs/SETUP.md](docs/SETUP.md) for the complete A-to-Z guide — from flashi
 
 ## Related
 
-- [openclaw-setup](https://github.com/BigDawg013/openclaw-setup) — The multi-agent AI system this scout monitors
+- [openclaw-setup](https://github.com/your-username/openclaw-setup) — The multi-agent AI system this scout monitors
 - [OpenClaw](https://openclaw.ai) — The platform powering the agents

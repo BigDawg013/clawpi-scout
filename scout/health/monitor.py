@@ -11,7 +11,7 @@ log = logging.getLogger("scout.health")
 
 class HealthMonitor:
     def __init__(self, config: dict, alerter):
-        self.url = config.get("url", "https://bigs-mac-mini.tail7b895b.ts.net")
+        self.url = config.get("url", "")
         self.interval = config.get("health_interval", 60)
         self.timeout = config.get("timeout", 10)
         self.max_failures = config.get("max_failures", 3)
