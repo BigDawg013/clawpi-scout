@@ -1,30 +1,49 @@
+# ──────────────────────────────────────────────
 # clawpi-scout configuration
+# ──────────────────────────────────────────────
+# Copy this file to scout.yaml and fill in your secrets.
+# scout.yaml is gitignored — it never leaves the Pi.
+#
+#   cp config/scout.yaml.example config/scout.yaml
+#   nano config/scout.yaml
+# ──────────────────────────────────────────────
 
+# ── Gateway ──────────────────────────────────
+# The OpenClaw gateway exposed via Tailscale Serve.
+# The scout pings this URL to verify the system is alive.
 gateway:
   url: "https://bigs-mac-mini.tail7b895b.ts.net"
-  health_interval: 60          # seconds between health checks
-  timeout: 10                  # seconds before a check is considered failed
-  max_failures: 3              # consecutive failures before alerting
+  health_interval: 60        # seconds between health checks
+  timeout: 10                # seconds before a check is considered failed
+  max_failures: 3            # consecutive failures before alerting
 
+# ── Telegram ─────────────────────────────────
+# Independent alerting channel — works even when OpenClaw is down.
+# 1. Message @BotFather → /newbot → copy the token
+# 2. Message @userinfobot → copy your chat ID
+#    OR message your bot, then run:
+#    curl https://api.telegram.org/bot<TOKEN>/getUpdates
 telegram:
-  bot_token: ""                # your Telegram bot token
-  chat_id: ""                  # your Telegram chat ID
-  alert_cooldown: 300          # seconds between repeat alerts for same issue
+  bot_token: ""              # e.g. "1234567890:AAF..."
+  chat_id: ""                # e.g. "987654321"
+  alert_cooldown: 300        # seconds between repeat alerts for same issue
 
+# ── Watchers ─────────────────────────────────
+# Lightweight URL/API monitors. Only reports when something changes.
 watchers:
-  check_interval: 300          # seconds between watcher runs
+  check_interval: 300        # seconds between watcher runs
   targets: []
-  # Example:
-  # - name: "OpenClaw Status"
+  # Example targets:
+  # - name: "Vercel App"
   #   url: "https://your-app.vercel.app/api/health"
-  #   type: "json"             # json | text | status_code
-  #   notify_on: "change"      # change | error | always
+  #   type: "json"           # json | text | status_code
+  #   notify_on: "change"    # change | error | always
   #
-  # - name: "GitHub Repo"
+  # - name: "GitHub Commits"
   #   url: "https://api.github.com/repos/BigDawg013/openclaw-setup/commits"
   #   type: "json"
   #   notify_on: "change"
 
+# ── Logging ──────────────────────────────────
 logging:
-  level: "INFO"                # DEBUG | INFO | WARNING | ERROR
-  file: "/var/log/clawpi-scout.log"
+  level: "INFO"              # DEBUG | INFO | WARNING | ERROR
