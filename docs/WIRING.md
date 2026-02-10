@@ -33,88 +33,160 @@ graph TD
 | LCD1602 with I2C backpack | 1 | Yes |
 | Jumper wires (M-M) | ~12 | Yes |
 
-## Full wiring diagram
+## Complete wiring — master schematic
+
+Every connection in one diagram. **Solid lines** = signal/power wires. **Dotted lines** = ground wires.
 
 ```mermaid
 graph LR
-    subgraph COB["📌 T-Cobbler (labeled pins)"]
+    subgraph COB["📌 T-COBBLER — match these labels on your board"]
+        direction TB
         GP17["GPIO17"]
         GP27["GPIO27"]
         GP22["GPIO22"]
         GP23["GPIO23"]
         GP24["GPIO24"]
         GP4["GPIO4"]
-        V33A["3.3V"]
+        V33["3.3V"]
         V5["5V"]
-        SDAP["SDA"]
-        SCLP["SCL"]
-        GND1["GND"]
-        GND2["GND"]
-        GND3["GND"]
-        GND4["GND"]
+        SDA_P["SDA"]
+        SCL_P["SCL"]
+        G1["GND ①"]
+        G2["GND ②"]
+        G3["GND ③"]
+        G4["GND ④"]
     end
 
-    subgraph LEDS["💡 Status LEDs"]
-        R1["220Ω"] --> G["🟢 Green LED"]
-        R2["220Ω"] --> R["🔴 Red LED"]
-        R3["220Ω"] --> Y["🟡 Yellow LED"]
+    subgraph BOARD["📐 ON THE BREADBOARD (right of cobbler)"]
+        subgraph S_LED["💡 STATUS LEDs (3x identical circuits)"]
+            subgraph SL1["col 20–24"]
+                RES1["220Ω"] --- GLED["🟢 Green LED"]
+            end
+            subgraph SL2["col 26–30"]
+                RES2["220Ω"] --- RLED["🔴 Red LED"]
+            end
+            subgraph SL3["col 32–36"]
+                RES3["220Ω"] --- YLED["🟡 Yellow LED"]
+            end
+        end
+        subgraph S_BUZ["🔊 BUZZER · col 38–39"]
+            BUZ["Active Buzzer\n(+) marked on top"]
+        end
+        subgraph S_BTN["🔘 BUTTON · col 41–43"]
+            BTN["Push Button\nstraddles center gap"]
+        end
     end
 
-    subgraph AUDIO["🔊 Buzzer"]
-        BZ["+  Active Buzzer  −"]
+    subgraph WIRE["🔌 WIRED DIRECTLY TO COBBLER (off-board)"]
+        subgraph S_DHT["🌡️ DHT11 SENSOR"]
+            direction TB
+            DHT_V["VCC pin"]
+            DHT_D["DATA pin"]
+            DHT_G["GND pin"]
+        end
+        subgraph S_LCD["📟 LCD1602 I2C BACKPACK"]
+            direction TB
+            LCD_V["VCC pin"]
+            LCD_S["SDA pin"]
+            LCD_C["SCL pin"]
+            LCD_G["GND pin"]
+        end
     end
 
-    subgraph INPUT["🔘 Button"]
-        BTN["Push Button"]
+    subgraph GND["⏚ BREADBOARD GND RAILS (blue − lines)"]
+        direction LR
+        TOP_RAIL["top − rail"]
+        BOT_RAIL["bottom − rail"]
     end
 
-    subgraph SENSOR["🌡️ Temperature"]
-        DHT["DHT11 Sensor"]
-    end
+    %% Signal wires: cobbler → breadboard components
+    GP17 -- "green wire" --> RES1
+    GP27 -- "red wire" --> RES2
+    GP22 -- "yellow wire" --> RES3
+    GP23 -- "orange wire" --> BUZ
+    GP24 -- "blue wire" --> BTN
 
-    subgraph DISPLAY["📟 LCD Display"]
-        LCD["LCD1602 I2C"]
-    end
+    %% Ground return: components → GND rails
+    GLED -. "LED (−) → GND" .-> TOP_RAIL
+    RLED -. "LED (−) → GND" .-> TOP_RAIL
+    YLED -. "LED (−) → GND" .-> TOP_RAIL
+    BUZ -. "buzzer (−) → GND" .-> TOP_RAIL
+    BTN -. "leg → GND" .-> BOT_RAIL
 
-    subgraph RAIL["⏚ GND Rail (red − line)"]
-        GROUND["GND"]
-    end
+    %% DHT11: 3 wires direct to cobbler
+    V33 -- "red wire · VCC" --> DHT_V
+    GP4 -- "purple wire · DATA" --> DHT_D
+    G3 -. "black wire · GND" .-> DHT_G
 
-    GP17 --> R1
-    GP27 --> R2
-    GP22 --> R3
-    G --> GROUND
-    R --> GROUND
-    Y --> GROUND
+    %% LCD: 4 wires direct to cobbler (M-to-F)
+    V5 -- "red wire · VCC" --> LCD_V
+    SDA_P -- "green wire · SDA" --> LCD_S
+    SCL_P -- "white wire · SCL" --> LCD_C
+    G4 -. "black wire · GND" .-> LCD_G
 
-    GP23 --> BZ
-    BZ --> GROUND
+    %% Cobbler GND pins → rails
+    G1 -. "black wire" .-> TOP_RAIL
+    G2 -. "black wire" .-> BOT_RAIL
 
-    GP24 --> BTN
-    BTN --> GROUND
-
-    V33A -->|"VCC"| DHT
-    GP4 -->|"DATA"| DHT
-    DHT --> GROUND
-
-    V5 -->|"VCC"| LCD
-    SDAP -->|"SDA"| LCD
-    SCLP -->|"SCL"| LCD
-    LCD --> GROUND
-
-    GND1 --> GROUND
-    GND2 --> GROUND
-    GND3 --> GROUND
-    GND4 --> GROUND
-
-    style COB fill:#1a1a2e,stroke:#e94560,color:#eee,stroke-width:2px
-    style LEDS fill:#0f3460,stroke:#64ffda,color:#eee
-    style AUDIO fill:#0f3460,stroke:#fca311,color:#eee
-    style INPUT fill:#0f3460,stroke:#00b4d8,color:#eee
-    style SENSOR fill:#0f3460,stroke:#e07aff,color:#eee
-    style DISPLAY fill:#0f3460,stroke:#06d6a0,color:#eee
-    style RAIL fill:#2b2b2b,stroke:#888,color:#ccc
+    %% Styles
+    style COB fill:#1a1a2e,stroke:#e94560,color:#eee,stroke-width:3px
+    style BOARD fill:#0a1628,stroke:#64ffda,color:#eee,stroke-width:2px
+    style WIRE fill:#0a1628,stroke:#e07aff,color:#eee,stroke-width:2px
+    style GND fill:#1a1a1a,stroke:#666,color:#ccc,stroke-width:2px
+    style S_LED fill:#0f3460,stroke:#64ffda,color:#eee
+    style S_BUZ fill:#0f3460,stroke:#fca311,color:#eee
+    style S_BTN fill:#0f3460,stroke:#00b4d8,color:#eee
+    style S_DHT fill:#0f3460,stroke:#e07aff,color:#eee
+    style S_LCD fill:#0f3460,stroke:#06d6a0,color:#eee
+    style SL1 fill:#162447,stroke:#64ffda,color:#eee
+    style SL2 fill:#162447,stroke:#e94560,color:#eee
+    style SL3 fill:#162447,stroke:#fca311,color:#eee
 ```
+
+## Physical breadboard layout
+
+Bird's-eye view — looking down at your breadboard with the cobbler plugged in.
+
+```
+    (−) GND rail ══════════════════════════════════════════════════
+    ┌──────────────────────────────────────────────────────────────┐
+    │                                                              │
+    │              ┌─────────┐  ┌──────┐ ┌──────┐ ┌──────┐       │
+    │              │         │  │ 220Ω │ │ 220Ω │ │ 220Ω │ ┌──┐  │
+    │  rows        │         │  │  🟢  │ │  🔴  │ │  🟡  │ │🔊│  │
+    │  a – e       │  T-COB  │  │  │   │ │  │   │ │  │   │ │ ││  │
+    │  (top half)  │  BLER   │  │  ↓   │ │  ↓   │ │  ↓   │ │ ↓│  │ ┌───┐
+    │              │         │  │→GND  │ │→GND  │ │→GND  │ │GND│  │ │🔘 │
+    │              │ GPIO17 ─╫──┘      │ │      │ │      │ └──┘  │ │   │
+    │              │ GPIO27 ─╫─────────┘ │      │ │      │ c38-39│ │   │
+    │              │ GPIO22 ─╫───────────┘      │ │      │       │ │   │
+    │              │ GPIO23 ─╫──────────────────┘ │      │       │ │   │
+    │              │ GPIO24 ─╫────────────────────┘──────┘───────┘─┘   │
+    │  ════════════╡═════════╡══════════════ center gap ════════│···│══│
+    │              │         │                                  │   │  │
+    │  rows        │ GND  ───╫──→ top (−) rail                 │🔘 │  │
+    │  f – j       │ GND  ───╫──→ bottom (−) rail              │ ↓ │  │
+    │  (bot half)  │         │                                  │→GND│  │
+    │              │         │                                  └───┘  │
+    │              └─────────┘                              col 41-43  │
+    │               col 1-15       col 20-24  26-30  32-36             │
+    │                                                                  │
+    └──────────────────────────────────────────────────────────────────┘
+    (−) GND rail ══════════════════════════════════════════════════
+
+    OFF-BOARD — wired directly to cobbler pins (not on breadboard):
+
+    ┌────────────────┐       ┌───────────────────┐
+    │  🌡️ DHT11      │       │  📟 LCD1602 I2C    │
+    │                │       │                   │
+    │  VCC  ← 3.3V  │       │  VCC ← 5V         │
+    │  DATA ← GPIO4  │       │  SDA ← SDA        │
+    │  GND  ← GND    │       │  SCL ← SCL        │
+    └────────────────┘       │  GND ← GND        │
+                              └───────────────────┘
+```
+
+> **Reading the layout**: The T-cobbler sits in the center of the breadboard (cols ~1–15). All breadboard components go to the **right** of the cobbler. The button straddles the center gap (rows e/f). DHT11 and LCD plug into the cobbler with direct wires — they don't sit on the breadboard.
 
 ## Step 0 — Ground rail
 
@@ -271,30 +343,29 @@ graph LR
 | SCL | → LCD SCL | White wire |
 | GND (x4) | → GND rails, Buzzer −, DHT11 GND, LCD GND | Black wires |
 
-## Breadboard column map
+## Wire tracing — every connection at a glance
 
-Where to place each component on the breadboard (right side of cobbler):
+Use this to double-check your work. Trace each wire from cobbler pin to destination.
 
 ```mermaid
-graph TD
-    subgraph BB["📐 Breadboard Layout — Right of Cobbler"]
-        direction LR
-        C20["Col 20-24\n🟢 Green LED\n+ resistor"]
-        C26["Col 26-30\n🔴 Red LED\n+ resistor"]
-        C32["Col 32-36\n🟡 Yellow LED\n+ resistor"]
-        C38["Col 38-39\n🔊 Buzzer"]
-        C41["Col 41-43\n🔘 Button\n(straddle gap)"]
+graph LR
+    subgraph TRACE["🔍 Trace each wire"]
+        direction TB
+        W1["🟢 green wire:   GPIO17 → 220Ω → Green LED(+) → LED(−) → GND rail"]
+        W2["🔴 red wire:     GPIO27 → 220Ω → Red LED(+) → LED(−) → GND rail"]
+        W3["🟡 yellow wire:  GPIO22 → 220Ω → Yellow LED(+) → LED(−) → GND rail"]
+        W4["🟠 orange wire:  GPIO23 → Buzzer(+) → Buzzer(−) → GND rail"]
+        W5["🔵 blue wire:    GPIO24 → Button leg(e) → Button leg(f) → GND rail"]
+        W6["🟣 purple wire:  GPIO4 → DHT11 DATA"]
+        W7["🔴 red wire:     3.3V → DHT11 VCC"]
+        W8["🔴 red wire:     5V → LCD VCC"]
+        W9["🟢 green wire:   SDA → LCD SDA"]
+        W10["⚪ white wire:   SCL → LCD SCL"]
+        W11["⚫ black wires:  GND×2 → rails · GND → DHT11 · GND → LCD"]
     end
 
-    style BB fill:#14213d,stroke:#fca311,color:#e5e5e5,stroke-width:2px
-    style C20 fill:#0f3460,stroke:#64ffda,color:#eee
-    style C26 fill:#0f3460,stroke:#e94560,color:#eee
-    style C32 fill:#0f3460,stroke:#fca311,color:#eee
-    style C38 fill:#0f3460,stroke:#fca311,color:#eee
-    style C41 fill:#0f3460,stroke:#00b4d8,color:#eee
+    style TRACE fill:#14213d,stroke:#fca311,color:#e5e5e5,stroke-width:2px
 ```
-
-DHT11 and LCD connect via wires directly to the cobbler — they don't need breadboard columns.
 
 ## What each component does
 
