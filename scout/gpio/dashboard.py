@@ -29,6 +29,8 @@ class Dashboard:
         self._dht_available = False
         self._last_temp = None
         self._last_humidity = None
+        self._last_gateway_ok = True
+        self._last_uptime = ""
 
     def setup(self):
         try:
@@ -117,6 +119,7 @@ class Dashboard:
 
     async def alarm(self, pulses: int = 3):
         """Short buzzer pulses for alerts."""
+        self.lcd_write("!! GW DOWN !!", "KABOOOOM!!!")
         for _ in range(pulses):
             self.buzzer_on()
             await asyncio.sleep(0.2)
@@ -152,12 +155,17 @@ class Dashboard:
             log.debug("LCD write error: %s", e)
 
     def update_lcd(self, gateway_ok: bool, uptime_str: str):
+        self._last_gateway_ok = gateway_ok
+        self._last_uptime = uptime_str
+        self._refresh_lcd()
+
+    def _refresh_lcd(self):
         temp, humidity = self.read_dht11()
-        status = "GW: UP" if gateway_ok else "GW: DOWN"
+        status = "GW: UP" if self._last_gateway_ok else "GW: DOWN"
         if temp is not None:
-            line2 = f"{temp:.0f}C {humidity:.0f}% {uptime_str}"
+            line2 = f"{temp:.0f}C {humidity:.0f}% {self._last_uptime}"
         else:
-            line2 = uptime_str
+            line2 = self._last_uptime
         self.lcd_write(status, line2)
 
     async def watch_button(self, stop: asyncio.Event):
@@ -175,11 +183,17 @@ class Dashboard:
                 if now - last_press > 2:  # debounce 2s
                     last_press = now
                     log.info("button pressed — sending briefing")
+                    self.lcd_write("Sending...", "Briefing >>")
                     if self.briefing_fn:
                         try:
                             await self.briefing_fn()
+                            self.lcd_write("Briefing sent!", "Check Telegram")
+                            await asyncio.sleep(2)
                         except Exception as e:
                             log.error("briefing failed: %s", e)
+                            self.lcd_write("Briefing", "FAILED :(")
+                            await asyncio.sleep(2)
+                    self._refresh_lcd()
             try:
                 await asyncio.wait_for(stop.wait(), timeout=0.1)
                 break
