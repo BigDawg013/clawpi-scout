@@ -11,6 +11,7 @@ import yaml
 from scout.health.monitor import HealthMonitor
 from scout.watchers.watcher import WatcherManager
 from scout.alerts.telegram import TelegramAlerter
+from scout.gpio.dashboard import Dashboard
 
 CONFIG_PATH = Path(__file__).parent.parent / "config" / "scout.yaml"
 
@@ -38,7 +39,19 @@ async def run():
     log.info("clawpi-scout starting")
 
     alerter = TelegramAlerter(config.get("telegram", {}))
-    health = HealthMonitor(config.get("gateway", {}), alerter)
+
+    # GPIO dashboard
+    dashboard = Dashboard(alerter=alerter)
+    dashboard.setup()
+
+    # Wire briefing function for button press
+    async def on_button_briefing():
+        from scout.briefing import run_briefing
+        await run_briefing()
+
+    dashboard.briefing_fn = on_button_briefing
+
+    health = HealthMonitor(config.get("gateway", {}), alerter, dashboard=dashboard)
     watchers = WatcherManager(config.get("watchers", {}), alerter)
 
     loop = asyncio.get_event_loop()
@@ -50,6 +63,7 @@ async def run():
     tasks = [
         asyncio.create_task(health.run(stop)),
         asyncio.create_task(watchers.run(stop)),
+        asyncio.create_task(dashboard.watch_button(stop)),
     ]
 
     log.info("all scouts active — monitoring")
@@ -59,6 +73,8 @@ async def run():
     for t in tasks:
         t.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
+
+    dashboard.cleanup()
     log.info("clawpi-scout stopped")
 
 
