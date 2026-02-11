@@ -41,7 +41,7 @@ async def run():
     alerter = TelegramAlerter(config.get("telegram", {}))
 
     # GPIO dashboard
-    dashboard = Dashboard(alerter=alerter)
+    dashboard = Dashboard(alerter=alerter, config=config)
     dashboard.setup()
 
     # Wire briefing function for button press

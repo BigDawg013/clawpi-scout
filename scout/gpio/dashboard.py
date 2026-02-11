@@ -1,4 +1,5 @@
-"""GPIO physical dashboard — LEDs, buzzer, button, DHT11, LCD1602."""
+"""GPIO physical dashboard — LEDs, buzzer, button, DHT11, LCD1602,
+LED bar graph, 4-digit 7-segment, 8x8 dot matrix."""
 
 import asyncio
 import logging
@@ -19,9 +20,10 @@ LCD_I2C_ADDR = 0x27
 
 
 class Dashboard:
-    def __init__(self, alerter=None, briefing_fn=None):
+    def __init__(self, alerter=None, briefing_fn=None, config=None):
         self.alerter = alerter
         self.briefing_fn = briefing_fn
+        self._config = config or {}
         self._gpio = None
         self._lcd = None
         self._available = False
@@ -31,6 +33,16 @@ class Dashboard:
         self._last_humidity = None
         self._last_gateway_ok = True
         self._last_uptime = ""
+
+        # Health score for bar graph (0-10)
+        self._health_score = 0
+
+        # Sub-drivers
+        self._bar_graph = None
+        self._shift_register = None
+        self._seven_seg = None
+        self._dot_matrix = None
+        self._multiplex = None
 
     def setup(self):
         try:
@@ -83,6 +95,90 @@ class Dashboard:
             log.warning("DHT11 not available: %s", e)
             self._dht_available = False
 
+        # --- New display sub-drivers ---
+        gpio_cfg = self._config.get("gpio", {})
+
+        # LED Bar Graph
+        if gpio_cfg.get("bar_graph", True) and self._available:
+            self._setup_bar_graph()
+
+        # Shift register chain (shared by 7-segment + matrix)
+        if gpio_cfg.get("seven_segment", True) or gpio_cfg.get("dot_matrix", True):
+            if self._available:
+                self._setup_shift_register()
+
+        # 4-Digit 7-Segment
+        if gpio_cfg.get("seven_segment", True) and self._available:
+            self._setup_seven_segment()
+
+        # 8x8 Dot Matrix
+        if gpio_cfg.get("dot_matrix", True) and self._available:
+            self._setup_dot_matrix()
+
+        # Start multiplex thread if any multiplexed display is active
+        if self._seven_seg or self._dot_matrix:
+            self._setup_multiplex()
+
+    def _setup_bar_graph(self):
+        try:
+            from scout.gpio.bar_graph import BarGraph
+            self._bar_graph = BarGraph(self._handle, self._gpio)
+            self._bar_graph.setup()
+        except Exception as e:
+            log.warning("bar graph setup failed: %s", e)
+            self._bar_graph = None
+
+    def _setup_shift_register(self):
+        try:
+            from scout.gpio.shift_register import ShiftRegister
+            self._shift_register = ShiftRegister(self._handle, self._gpio)
+            self._shift_register.setup()
+        except Exception as e:
+            log.warning("shift register setup failed: %s", e)
+            self._shift_register = None
+
+    def _setup_seven_segment(self):
+        if not self._shift_register or not self._shift_register.available:
+            log.warning("7-segment skipped — shift register not available")
+            return
+        try:
+            from scout.gpio.seven_segment import SevenSegment
+            self._seven_seg = SevenSegment(self._handle, self._gpio)
+            self._seven_seg.setup()
+            if not self._seven_seg.available:
+                self._seven_seg = None
+        except Exception as e:
+            log.warning("7-segment setup failed: %s", e)
+            self._seven_seg = None
+
+    def _setup_dot_matrix(self):
+        if not self._shift_register or not self._shift_register.available:
+            log.warning("dot matrix skipped — shift register not available")
+            return
+        try:
+            from scout.gpio.dot_matrix import DotMatrix
+            self._dot_matrix = DotMatrix()
+            # Matrix needs 3 SR chips (1 for 7-seg + 2 for matrix)
+            self._dot_matrix.setup(sr_available=True)
+        except Exception as e:
+            log.warning("dot matrix setup failed: %s", e)
+            self._dot_matrix = None
+
+    def _setup_multiplex(self):
+        try:
+            from scout.gpio.multiplex_thread import MultiplexThread
+            self._multiplex = MultiplexThread(
+                self._shift_register,
+                seven_seg=self._seven_seg,
+                dot_matrix=self._dot_matrix,
+            )
+            self._multiplex.start()
+        except Exception as e:
+            log.warning("multiplex thread setup failed: %s", e)
+            self._multiplex = None
+
+    # --- LED controls ---
+
     def led_checking(self):
         if not self._available:
             return
@@ -107,6 +203,8 @@ class Dashboard:
         lgpio.gpio_write(self._handle, PIN_LED_RED, 1)
         lgpio.gpio_write(self._handle, PIN_LED_YELLOW, 0)
 
+    # --- Buzzer ---
+
     def buzzer_on(self):
         if not self._available:
             return
@@ -120,16 +218,27 @@ class Dashboard:
     async def alarm(self, pulses: int = 3):
         """Short buzzer pulses for alerts."""
         self.lcd_write("!! GW DOWN !!", "KABOOOOM!!!")
+        # Matrix blink during alarm
+        if self._dot_matrix and self._multiplex:
+            with self._multiplex.lock:
+                self._dot_matrix.set_blink(True)
         for _ in range(pulses):
             self.buzzer_on()
             await asyncio.sleep(0.2)
             self.buzzer_off()
             await asyncio.sleep(0.2)
+        if self._dot_matrix and self._multiplex:
+            with self._multiplex.lock:
+                self._dot_matrix.set_blink(False)
+
+    # --- Button ---
 
     def read_button(self) -> bool:
         if not self._available:
             return False
         return self._gpio.gpio_read(self._handle, PIN_BUTTON) == 0
+
+    # --- DHT11 ---
 
     def read_dht11(self) -> tuple[float | None, float | None]:
         if not self._dht_available:
@@ -145,6 +254,8 @@ class Dashboard:
             pass
         return self._last_temp, self._last_humidity
 
+    # --- LCD ---
+
     def lcd_write(self, line1: str, line2: str = ""):
         if not self._lcd_available:
             return
@@ -159,14 +270,68 @@ class Dashboard:
         self._last_uptime = uptime_str
         self._refresh_lcd()
 
+    _UP_MESSAGES = [
+        "Claw Vibin'",
+        "All Good Fam",
+        "Claw Online",
+        "Scout On Duty",
+        "Systems Nominal",
+        "We Cookin'",
+        "Claw Runnin'",
+        "Big Dawg Mode",
+    ]
+    _DOWN_MESSAGES = [
+        "Claw is DEAD!",
+        "MAYDAY MAYDAY!",
+        "Houston Problem",
+        "Not Good Fam",
+    ]
+    _msg_index = 0
+
     def _refresh_lcd(self):
+        import random
         temp, humidity = self.read_dht11()
-        status = "GW: UP" if self._last_gateway_ok else "GW: DOWN"
+        if self._last_gateway_ok:
+            status = self._UP_MESSAGES[self._msg_index % len(self._UP_MESSAGES)]
+            self._msg_index += 1
+        else:
+            status = random.choice(self._DOWN_MESSAGES)
         if temp is not None:
             line2 = f"{temp:.0f}C {humidity:.0f}% {self._last_uptime}"
         else:
             line2 = self._last_uptime
         self.lcd_write(status, line2)
+
+    # --- Health score + new displays ---
+
+    def on_health_check(self, ok: bool, consecutive_ok: int, uptime_seconds: int):
+        """Called by HealthMonitor after each check to update all displays."""
+        # Update health score for bar graph
+        if ok:
+            self._health_score = min(10, self._health_score + 1)
+        else:
+            self._health_score = max(0, self._health_score - 2)
+
+        # Bar graph
+        if self._bar_graph:
+            self._bar_graph.set_level(self._health_score)
+
+        # 7-segment uptime (HH:MM)
+        if self._seven_seg and self._multiplex:
+            hours = (uptime_seconds // 3600) % 100  # wrap at 99h
+            minutes = (uptime_seconds % 3600) // 60
+            with self._multiplex.lock:
+                self._seven_seg.set_time(hours, minutes)
+
+        # Dot matrix pattern
+        if self._dot_matrix and self._multiplex:
+            from scout.gpio.dot_matrix import PATTERN_SMILEY, PATTERN_X
+            with self._multiplex.lock:
+                self._dot_matrix.set_pattern(
+                    PATTERN_SMILEY if ok else PATTERN_X
+                )
+
+    # --- Button watcher ---
 
     async def watch_button(self, stop: asyncio.Event):
         """Poll button and trigger briefing on press."""
@@ -200,7 +365,39 @@ class Dashboard:
             except asyncio.TimeoutError:
                 pass
 
+    # --- Cleanup ---
+
     def cleanup(self):
+        # Stop multiplex thread first
+        if self._multiplex:
+            try:
+                self._multiplex.stop()
+            except Exception:
+                pass
+
+        # Clean up new displays
+        if self._bar_graph:
+            try:
+                self._bar_graph.cleanup()
+            except Exception:
+                pass
+        if self._seven_seg:
+            try:
+                self._seven_seg.cleanup()
+            except Exception:
+                pass
+        if self._dot_matrix:
+            try:
+                self._dot_matrix.cleanup()
+            except Exception:
+                pass
+        if self._shift_register:
+            try:
+                self._shift_register.cleanup()
+            except Exception:
+                pass
+
+        # Original cleanup
         if self._available:
             try:
                 lgpio = self._gpio

@@ -337,11 +337,28 @@ graph LR
 | GPIO23 | → Buzzer (+) | Orange wire |
 | GPIO24 | → Button leg | Blue wire |
 | GPIO4 | → DHT11 DATA | Purple wire |
-| 3.3V | → DHT11 VCC | Red wire |
+| GPIO5 | → 74HC595 chain SER (data) | Blue wire |
+| GPIO6 | → 74HC595 chain RCLK (latch) | Green wire |
+| GPIO13 | → 74HC595 chain SRCLK (clock) | Yellow wire |
+| GPIO12 | → 7-segment digit 1 select | White wire |
+| GPIO16 | → 7-segment digit 2 select | White wire |
+| GPIO20 | → 7-segment digit 3 select | White wire |
+| GPIO21 | → 7-segment digit 4 select | White wire |
+| GPIO25 | → 220Ω → Bar graph seg 1 → GND | Orange wire |
+| GPIO8 | → 220Ω → Bar graph seg 2 → GND | Orange wire |
+| GPIO7 | → 220Ω → Bar graph seg 3 → GND | Orange wire |
+| GPIO9 | → 220Ω → Bar graph seg 4 → GND | Orange wire |
+| GPIO11 | → 220Ω → Bar graph seg 5 → GND | Orange wire |
+| GPIO10 | → 220Ω → Bar graph seg 6 → GND | Orange wire |
+| GPIO19 | → 220Ω → Bar graph seg 7 → GND | Orange wire |
+| GPIO26 | → 220Ω → Bar graph seg 8 → GND | Orange wire |
+| GPIO18 | → 220Ω → Bar graph seg 9 → GND | Orange wire |
+| GPIO15 | → 220Ω → Bar graph seg 10 → GND | Orange wire |
+| 3.3V | → DHT11 VCC, 74HC595 VCC + SRCLR (x3) | Red wire |
 | 5V | → LCD VCC | Red wire |
 | SDA | → LCD SDA | Green wire |
 | SCL | → LCD SCL | White wire |
-| GND (x4) | → GND rails, Buzzer −, DHT11 GND, LCD GND | Black wires |
+| GND (x4+) | → GND rails, Buzzer −, DHT11 GND, LCD GND, 74HC595 GND+OE (x3) | Black wires |
 
 ## Wire tracing — every connection at a glance
 
@@ -367,6 +384,157 @@ graph LR
     style TRACE fill:#14213d,stroke:#fca311,color:#e5e5e5,stroke-width:2px
 ```
 
+---
+
+## Phase 2 displays — LED Bar Graph + 74HC595 chain + 7-Segment + Dot Matrix
+
+### Additional parts needed
+
+| Component | Qty | From kit | Notes |
+|-----------|-----|----------|-------|
+| LED bar graph (10 segment) | 1 | Yes | |
+| 220 ohm resistor | 10 | Yes | One per bar segment |
+| 74HC595 shift register | 3 | Yes (2+) | 1 for 7-seg, 2 for matrix. Buy 1 more if only 2 in kit (~$0.50) |
+| 4-digit 7-segment display | 1 | Yes | Common cathode |
+| 8x8 LED dot matrix | 1 | Yes | |
+| Jumper wires (M-M) | ~20 | Yes | |
+
+### Additional GPIO pin allocation
+
+```
+74HC595 chain (shared):      GPIO 5 (data), GPIO 6 (latch), GPIO 13 (clock)
+7-segment digit select:      GPIO 12, 16, 20, 21
+Bar graph segments 1-10:     GPIO 25, 8, 7, 9, 11, 10, 19, 26, 18, 15
+Reserved:                    GPIO 14
+```
+
+### Step 6 — LED Bar Graph (health gauge)
+
+10 LEDs, each driven through a 220 ohm resistor from its own GPIO pin.
+
+```mermaid
+graph LR
+    subgraph BAR["📊 LED Bar Graph — 10 segments"]
+        GP25["GPIO25"] -->|"220Ω"| S1["Seg 1"]
+        GP8["GPIO8"] -->|"220Ω"| S2["Seg 2"]
+        GP7["GPIO7"] -->|"220Ω"| S3["Seg 3"]
+        GP9["GPIO9"] -->|"220Ω"| S4["Seg 4"]
+        GP11["GPIO11"] -->|"220Ω"| S5["Seg 5"]
+        GP10["GPIO10"] -->|"220Ω"| S6["Seg 6"]
+        GP19["GPIO19"] -->|"220Ω"| S7["Seg 7"]
+        GP26["GPIO26"] -->|"220Ω"| S8["Seg 8"]
+        GP18["GPIO18"] -->|"220Ω"| S9["Seg 9"]
+        GP15["GPIO15"] -->|"220Ω"| S10["Seg 10"]
+        S1 & S2 & S3 & S4 & S5 & S6 & S7 & S8 & S9 & S10 --> GND["GND rail"]
+    end
+
+    style BAR fill:#0f3460,stroke:#64ffda,color:#eee
+```
+
+**How to wire:**
+
+1. Place the bar graph on the breadboard (the 10-segment component has 20 pins — 10 anodes on one side, 10 cathodes on the other)
+2. Connect each anode through a 220 ohm resistor to its GPIO pin
+3. Connect all cathodes to the GND rail
+4. The bar fills left-to-right as health score increases
+
+### Step 7 — 74HC595 shift register chain
+
+Three 74HC595 chips daisy-chained on 3 shared GPIO pins. All share the same data, latch, and clock lines.
+
+```mermaid
+graph LR
+    subgraph SR_CHAIN["⛓️ 74HC595 Daisy Chain — 3 chips, 3 GPIO pins"]
+        GP5["GPIO5 (Data)"] --> SR1_SER["SR1 pin 14 (SER)"]
+        GP6["GPIO6 (Latch)"] --> SR1_RCLK["SR1 pin 12 (RCLK)"]
+        GP13["GPIO13 (Clock)"] --> SR1_SRCLK["SR1 pin 11 (SRCLK)"]
+
+        SR1_QH["SR1 pin 9 (QH')"] --> SR2_SER["SR2 pin 14 (SER)"]
+        SR2_QH["SR2 pin 9 (QH')"] --> SR3_SER["SR3 pin 14 (SER)"]
+
+        SR1_RCLK -.->|"shared"| SR2_RCLK["SR2 pin 12"] & SR3_RCLK["SR3 pin 12"]
+        SR1_SRCLK -.->|"shared"| SR2_SRCLK["SR2 pin 11"] & SR3_SRCLK["SR3 pin 11"]
+    end
+
+    style SR_CHAIN fill:#0f3460,stroke:#fca311,color:#eee
+```
+
+**74HC595 pinout reference (for each chip):**
+
+| Pin | Name | Connection |
+|-----|------|-----------|
+| 14 | SER (data in) | GPIO5 (first chip) or QH' of previous chip |
+| 12 | RCLK (latch) | GPIO6 (shared to all chips) |
+| 11 | SRCLK (clock) | GPIO13 (shared to all chips) |
+| 9 | QH' (serial out) | SER of next chip (daisy chain) |
+| 16 | VCC | 3.3V |
+| 8 | GND | GND rail |
+| 10 | SRCLR (clear) | 3.3V (active low — tie high to disable) |
+| 13 | OE (output enable) | GND (active low — tie low to enable) |
+
+> **Chain order**: SR1 (7-segment segments) → SR2 (matrix columns) → SR3 (matrix rows). Data shifts through SR1 first, overflows to SR2, then SR3.
+
+### Step 8 — 4-Digit 7-Segment display
+
+The first 74HC595 (SR1) drives segments a–g + dp. Four GPIO pins select which digit is active.
+
+```mermaid
+graph LR
+    subgraph SEG7["🔢 4-Digit 7-Segment"]
+        SR1["SR1 outputs Q0-Q7"] -->|"segments a-g + dp"| DISP["7-Segment Display"]
+        GP12["GPIO12"] -->|"Digit 1"| DISP
+        GP16["GPIO16"] -->|"Digit 2"| DISP
+        GP20["GPIO20"] -->|"Digit 3"| DISP
+        GP21["GPIO21"] -->|"Digit 4"| DISP
+    end
+
+    style SEG7 fill:#0f3460,stroke:#00b4d8,color:#eee
+```
+
+**SR1 output to 7-segment pin mapping:**
+
+| SR1 output | 7-seg segment | Position |
+|-----------|--------------|----------|
+| Q0 | a | top |
+| Q1 | b | top-right |
+| Q2 | c | bottom-right |
+| Q3 | d | bottom |
+| Q4 | e | bottom-left |
+| Q5 | f | top-left |
+| Q6 | g | middle |
+| Q7 | dp | decimal point |
+
+**Digit select wiring:**
+- GPIO12 → Digit 1 common pin (hours tens)
+- GPIO16 → Digit 2 common pin (hours ones)
+- GPIO20 → Digit 3 common pin (minutes tens)
+- GPIO21 → Digit 4 common pin (minutes ones)
+
+> Digit select is **active LOW** — pull the pin low to enable that digit's cathode.
+
+### Step 9 — 8x8 Dot Matrix
+
+Two more 74HC595s (SR2 + SR3) drive the 8x8 matrix. SR2 handles columns (which LEDs are on), SR3 handles row select (which row is active).
+
+```mermaid
+graph LR
+    subgraph MATRIX["🔲 8x8 Dot Matrix"]
+        SR2["SR2 outputs Q0-Q7"] -->|"columns (data)"| DOT["8x8 Matrix"]
+        SR3["SR3 outputs Q0-Q7"] -->|"rows (scan)"| DOT
+    end
+
+    style MATRIX fill:#0f3460,stroke:#e07aff,color:#eee
+```
+
+**Wiring:**
+1. SR2 Q0–Q7 → matrix column pins (active HIGH = LED on)
+2. SR3 Q0–Q7 → matrix row pins (active LOW = row selected)
+3. No extra resistors needed — the 74HC595 output current is safe for the matrix
+
+> **If you only have 2x 74HC595**: Wire SR1 + SR2 for the 7-segment and bar graph. The dot matrix (Step 9) needs a third chip — available for ~$0.50.
+
+---
+
 ## What each component does
 
 | Component | Behavior |
@@ -378,6 +546,9 @@ graph LR
 | 🔘 Button | Press = send Telegram briefing immediately |
 | 🌡️ DHT11 | Room temp/humidity shown on LCD and in briefings |
 | 📟 LCD1602 | Line 1: gateway status · Line 2: temp + uptime |
+| 📊 Bar Graph | Health gauge: 0–10 bars. +1 per success, −2 per failure |
+| 🔢 7-Segment | Uptime counter in HH:MM format, colon blinks every 500ms |
+| 🔲 Dot Matrix | Smiley face when UP, X when DOWN, blinks during alarm |
 
 ## Verify after wiring
 
@@ -397,5 +568,12 @@ Expected output:
 GPIO initialized — LEDs, buzzer, button ready
 LCD1602 initialized at 0x27
 DHT11 initialized on GPIO4
+bar graph initialized — 10 segments on [25, 8, 7, 9, 11, 10, 19, 26, 18, 15]
+shift register chain initialized — data=5 latch=6 clock=13
+7-segment digit select initialized — pins [12, 16, 20, 21]
+dot matrix initialized (via shift register chain)
+multiplex thread started
 button watcher started on GPIO24
 ```
+
+> Missing components are logged as warnings and gracefully skipped. Set `gpio.bar_graph`, `gpio.seven_segment`, or `gpio.dot_matrix` to `false` in `config/scout.yaml` to disable individual displays.

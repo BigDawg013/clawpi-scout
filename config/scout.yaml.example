@@ -44,6 +44,14 @@ watchers:
   #   type: "json"
   #   notify_on: "change"
 
+# ── GPIO Displays ──────────────────────────────
+# Enable/disable the three new physical displays.
+# All default to true — set to false if hardware is not wired.
+gpio:
+  bar_graph: true            # 10-segment LED bar graph (health gauge)
+  seven_segment: true        # 4-digit 7-segment display (HH:MM uptime)
+  dot_matrix: true           # 8x8 LED dot matrix (smiley/X status)
+
 # ── Logging ──────────────────────────────────
 logging:
   level: "INFO"              # DEBUG | INFO | WARNING | ERROR

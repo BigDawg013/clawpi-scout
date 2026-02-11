@@ -19,6 +19,7 @@ class HealthMonitor:
         self.dashboard = dashboard
 
         self._consecutive_failures = 0
+        self._consecutive_ok = 0
         self._alerted = False
         self._last_ok = None
         self._start_time = time.time()
@@ -43,6 +44,9 @@ class HealthMonitor:
         minutes, _ = divmod(remainder, 60)
         return f"Up {hours}h{minutes:02d}m"
 
+    def _uptime_seconds(self) -> int:
+        return int(time.time() - self._start_time)
+
     async def run(self, stop: asyncio.Event):
         log.info("health monitor started — checking %s every %ds", self.url, self.interval)
         while not stop.is_set():
@@ -58,14 +62,19 @@ class HealthMonitor:
                     await self.alerter.send("Gateway RECOVERED — back online.")
                     self._alerted = False
                 self._consecutive_failures = 0
+                self._consecutive_ok += 1
                 log.debug("gateway ok")
 
                 # Green LED + update LCD
                 if self.dashboard:
                     self.dashboard.led_ok()
                     self.dashboard.update_lcd(True, self._uptime_str())
+                    self.dashboard.on_health_check(
+                        True, self._consecutive_ok, self._uptime_seconds()
+                    )
             else:
                 self._consecutive_failures += 1
+                self._consecutive_ok = 0
                 log.warning(
                     "gateway unreachable (%d/%d)",
                     self._consecutive_failures,
@@ -76,6 +85,9 @@ class HealthMonitor:
                 if self.dashboard:
                     self.dashboard.led_fail()
                     self.dashboard.update_lcd(False, self._uptime_str())
+                    self.dashboard.on_health_check(
+                        False, 0, self._uptime_seconds()
+                    )
 
                 if self._consecutive_failures >= self.max_failures and not self._alerted:
                     await self.alerter.send(
@@ -87,6 +99,7 @@ class HealthMonitor:
                     # Buzzer alarm
                     if self.dashboard:
                         await self.dashboard.alarm(pulses=3)
+                        self.dashboard.update_lcd(False, self._uptime_str())
 
             try:
                 await asyncio.wait_for(stop.wait(), timeout=self.interval)
