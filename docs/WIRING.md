@@ -47,6 +47,23 @@ graph LR
         GP23["GPIO23"]
         GP24["GPIO24"]
         GP4["GPIO4"]
+        GP5["GPIO5"]
+        GP6["GPIO6"]
+        GP13["GPIO13"]
+        GP12["GPIO12"]
+        GP16["GPIO16"]
+        GP20["GPIO20"]
+        GP21["GPIO21"]
+        GP25["GPIO25"]
+        GP8["GPIO8"]
+        GP7["GPIO7"]
+        GP9["GPIO9"]
+        GP11["GPIO11"]
+        GP10["GPIO10"]
+        GP19["GPIO19"]
+        GP26["GPIO26"]
+        GP18["GPIO18"]
+        GP15["GPIO15"]
         V33["3.3V"]
         V5["5V"]
         SDA_P["SDA"]
@@ -57,7 +74,7 @@ graph LR
         G4["GND ④"]
     end
 
-    subgraph BOARD["📐 ON THE BREADBOARD (right of cobbler)"]
+    subgraph BOARD["📐 ON THE BREADBOARD"]
         subgraph S_LED["💡 STATUS LEDs (3x identical circuits)"]
             subgraph SL1["col 20–24"]
                 RES1["220Ω"] --- GLED["🟢 Green LED"]
@@ -74,6 +91,22 @@ graph LR
         end
         subgraph S_BTN["🔘 BUTTON · col 41–43"]
             BTN["Push Button\nstraddles center gap"]
+        end
+        subgraph S_BAR["📊 LED BAR GRAPH (10 segments)"]
+            BAR["10-seg bar\neach via 220Ω"]
+        end
+        subgraph S_SR["⛓️ 74HC595 SHIFT REGISTER CHAIN (3 chips)"]
+            SR1["SR1 · 7-seg segments"]
+            SR2["SR2 · matrix columns"]
+            SR3["SR3 · matrix rows"]
+            SR1 -->|"QH' → SER"| SR2
+            SR2 -->|"QH' → SER"| SR3
+        end
+        subgraph S_7SEG["🔢 4-DIGIT 7-SEGMENT"]
+            SEG["HH:MM uptime\n4 digit select pins"]
+        end
+        subgraph S_MATRIX["🔲 8x8 DOT MATRIX"]
+            DOT["8x8 LED matrix\nsmiley / X pattern"]
         end
     end
 
@@ -99,12 +132,42 @@ graph LR
         BOT_RAIL["bottom − rail"]
     end
 
-    %% Signal wires: cobbler → breadboard components
+    %% Signal wires: cobbler → status LEDs + buzzer + button
     GP17 -- "green wire" --> RES1
     GP27 -- "red wire" --> RES2
     GP22 -- "yellow wire" --> RES3
     GP23 -- "orange wire" --> BUZ
     GP24 -- "blue wire" --> BTN
+
+    %% Bar graph: 10 GPIO pins → 220Ω → segments
+    GP25 -- "seg 1" --> BAR
+    GP8 -- "seg 2" --> BAR
+    GP7 -- "seg 3" --> BAR
+    GP9 -- "seg 4" --> BAR
+    GP11 -- "seg 5" --> BAR
+    GP10 -- "seg 6" --> BAR
+    GP19 -- "seg 7" --> BAR
+    GP26 -- "seg 8" --> BAR
+    GP18 -- "seg 9" --> BAR
+    GP15 -- "seg 10" --> BAR
+
+    %% 74HC595 chain: 3 shared GPIO pins
+    GP5 -- "data (SER)" --> SR1
+    GP6 -- "latch (RCLK)" --> SR1
+    GP13 -- "clock (SRCLK)" --> SR1
+
+    %% SR1 → 7-segment segments
+    SR1 -- "Q0–Q7 · segments a–g+dp" --> SEG
+
+    %% 7-segment digit select: 4 GPIO pins
+    GP12 -- "digit 1" --> SEG
+    GP16 -- "digit 2" --> SEG
+    GP20 -- "digit 3" --> SEG
+    GP21 -- "digit 4" --> SEG
+
+    %% SR2+SR3 → dot matrix
+    SR2 -- "Q0–Q7 · columns" --> DOT
+    SR3 -- "Q0–Q7 · rows" --> DOT
 
     %% Ground return: components → GND rails
     GLED -. "LED (−) → GND" .-> TOP_RAIL
@@ -112,6 +175,15 @@ graph LR
     YLED -. "LED (−) → GND" .-> TOP_RAIL
     BUZ -. "buzzer (−) → GND" .-> TOP_RAIL
     BTN -. "leg → GND" .-> BOT_RAIL
+    BAR -. "cathodes → GND" .-> TOP_RAIL
+    SR1 -. "pin 8 GND · pin 13 OE" .-> TOP_RAIL
+    SR2 -. "pin 8 GND · pin 13 OE" .-> TOP_RAIL
+    SR3 -. "pin 8 GND · pin 13 OE" .-> TOP_RAIL
+
+    %% 74HC595 power: VCC + SRCLR → 3.3V
+    V33 -- "VCC + SRCLR" --> SR1
+    V33 -- "VCC + SRCLR" --> SR2
+    V33 -- "VCC + SRCLR" --> SR3
 
     %% DHT11: 3 wires direct to cobbler
     V33 -- "red wire · VCC" --> DHT_V
@@ -138,6 +210,10 @@ graph LR
     style S_BTN fill:#0f3460,stroke:#00b4d8,color:#eee
     style S_DHT fill:#0f3460,stroke:#e07aff,color:#eee
     style S_LCD fill:#0f3460,stroke:#06d6a0,color:#eee
+    style S_BAR fill:#0f3460,stroke:#ff6b6b,color:#eee
+    style S_SR fill:#0f3460,stroke:#fca311,color:#eee
+    style S_7SEG fill:#0f3460,stroke:#00b4d8,color:#eee
+    style S_MATRIX fill:#0f3460,stroke:#e07aff,color:#eee
     style SL1 fill:#162447,stroke:#64ffda,color:#eee
     style SL2 fill:#162447,stroke:#e94560,color:#eee
     style SL3 fill:#162447,stroke:#fca311,color:#eee
