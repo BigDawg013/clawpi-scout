@@ -57,6 +57,7 @@ class StatsPusher:
 
         return {
             "ts": int(time.time()),
+            "machine": "clawpiscout",
             "gateway": {
                 "status": self.health.status,
                 "consecutive_ok": self.health.consecutive_ok,
