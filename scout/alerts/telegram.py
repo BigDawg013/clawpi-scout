@@ -14,6 +14,7 @@ class TelegramAlerter:
         self.chat_id = config.get("chat_id", "")
         self.cooldown = config.get("alert_cooldown", 300)
         self._last_sent: dict[str, float] = {}
+        self._recent_alerts: list[dict] = []  # last 10 alerts for dashboard
 
     @property
     def configured(self) -> bool:
@@ -44,6 +45,8 @@ class TelegramAlerter:
                     if resp.status == 200:
                         log.info("telegram alert sent: %s", message[:80])
                         self._last_sent[cooldown_key] = now
+                        self._recent_alerts.append({"ts": now, "message": message})
+                        self._recent_alerts = self._recent_alerts[-10:]
                     else:
                         body = await resp.text()
                         log.error("telegram send failed (%d): %s", resp.status, body)

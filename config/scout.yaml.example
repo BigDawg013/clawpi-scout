@@ -44,6 +44,14 @@ watchers:
   #   type: "json"
   #   notify_on: "change"
 
+# ── Dashboard ──────────────────────────────────
+# Push stats to the Vercel-hosted dashboard.
+# See: https://github.com/BigDawg013/clawpi-scout-dashboard
+dashboard:
+  url: "https://clawpi-scout-dashboard.vercel.app/api/stats"
+  api_key: ""              # Same as SCOUT_API_KEY env var on Vercel
+  push_interval: 60        # seconds between pushes
+
 # ── GPIO Displays ──────────────────────────────
 # Enable/disable the three new physical displays.
 # All default to true — set to false if hardware is not wired.

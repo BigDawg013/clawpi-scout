@@ -12,6 +12,7 @@ from scout.health.monitor import HealthMonitor
 from scout.watchers.watcher import WatcherManager
 from scout.alerts.telegram import TelegramAlerter
 from scout.gpio.dashboard import Dashboard
+from scout.stats_pusher import StatsPusher
 
 CONFIG_PATH = Path(__file__).parent.parent / "config" / "scout.yaml"
 
@@ -53,6 +54,7 @@ async def run():
 
     health = HealthMonitor(config.get("gateway", {}), alerter, dashboard=dashboard)
     watchers = WatcherManager(config.get("watchers", {}), alerter)
+    stats_pusher = StatsPusher(config, health, dashboard, alerter)
 
     loop = asyncio.get_event_loop()
     stop = asyncio.Event()
@@ -64,6 +66,7 @@ async def run():
         asyncio.create_task(health.run(stop)),
         asyncio.create_task(watchers.run(stop)),
         asyncio.create_task(dashboard.watch_button(stop)),
+        asyncio.create_task(stats_pusher.run(stop)),
     ]
 
     log.info("all scouts active — monitoring")

@@ -24,6 +24,18 @@ class HealthMonitor:
         self._last_ok = None
         self._start_time = time.time()
 
+    @property
+    def status(self) -> str:
+        return "down" if self._alerted else "up"
+
+    @property
+    def consecutive_ok(self) -> int:
+        return self._consecutive_ok
+
+    @property
+    def uptime_seconds(self) -> int:
+        return self._uptime_seconds()
+
     async def check(self) -> bool:
         try:
             async with aiohttp.ClientSession() as session:
