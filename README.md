@@ -1,164 +1,219 @@
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-Raspberry%20Pi-c51a4a?style=flat-square&logo=raspberrypi&logoColor=white" alt="Raspberry Pi" />
+  <img src="https://img.shields.io/badge/python-3.11+-3776ab?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+" />
+  <img src="https://img.shields.io/badge/network-Tailscale-0052ff?style=flat-square&logo=tailscale&logoColor=white" alt="Tailscale" />
+  <img src="https://img.shields.io/badge/alerts-Telegram-26a5e4?style=flat-square&logo=telegram&logoColor=white" alt="Telegram" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License" />
+</p>
+
 # clawpi-scout
 
-Raspberry Pi scout node for [OpenClaw](https://github.com/your-username/openclaw-setup) — health monitoring, web watchers, and Telegram alerting for a multi-agent AI system.
+A Raspberry Pi watchdog daemon that monitors an [OpenClaw](https://openclaw.ai) AI gateway and reports status through **Telegram alerts** and a **physical GPIO dashboard** with LEDs, LCD, sensors, and multiplexed displays.
 
-## What is this?
+> The scout observes, detects, and reports — it doesn't think.
 
-A lightweight always-on daemon running on a Raspberry Pi that acts as a **scout** for the main OpenClaw system on a Mac Mini. The scout observes, detects, and reports — it doesn't think.
+---
 
-| Capability | What it does |
-|-----------|-------------|
-| **Health monitor** | Pings the OpenClaw gateway every 60s, alerts on failure |
-| **Web watchers** | Monitors URLs/APIs for changes, only reports when something matters |
-| **Telegram alerts** | Independent alerting that works even when OpenClaw is offline |
-| **Morning briefing** | Daily summary — gateway status, system health, Pi vitals |
+## What it does
+
+| Module | Function | Frequency |
+|--------|----------|-----------|
+| **Health monitor** | Pings the OpenClaw gateway, alerts after 3 consecutive failures | Every 60s |
+| **Web watchers** | Monitors URLs/APIs, alerts when content changes | Every 5 min |
+| **Morning briefing** | Telegram summary — gateway status, CPU temp, disk, memory | Daily 8 AM |
+| **GPIO dashboard** | Physical LED/LCD/sensor display showing live system state | Real-time |
+
+---
+
+## GPIO Dashboard
+
+The scout drives a physical breadboard dashboard with **10 components** across **17 GPIO pins**:
+
+| Component | What it shows | Drive method |
+|-----------|--------------|-------------|
+| 3x Status LEDs | Green=OK, Yellow=checking, Red=down | Direct GPIO |
+| Active buzzer | Alarm on 3 consecutive failures | Direct GPIO |
+| Push button | Press to send instant briefing to Telegram | Direct GPIO |
+| DHT11 sensor | Temperature + humidity on LCD | Direct GPIO |
+| LCD1602 (I2C) | Gateway status, uptime, temp readout | I2C bus |
+| **LED bar graph** (10-seg) | Health gauge: fills with consecutive successes | Direct GPIO (10 pins) |
+| **4-digit 7-segment** | Uptime counter in HH:MM with blinking colon | 1x 74HC595 shift register |
+| **8x8 dot matrix** | Smiley when UP, X when DOWN, blinks on alarm | 2x 74HC595 daisy-chained |
+
+All three shift registers share 3 GPIO pins (data, latch, clock) via daisy-chaining. A background thread multiplexes the 7-segment digits and matrix rows at ~1kHz for flicker-free display.
+
+See [docs/WIRING.md](docs/WIRING.md) for complete wiring diagrams and breadboard layout.
+
+---
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────┐
-│  Mac Mini · <mac-mini-hostname>          │
-│  ┌────────────────────────────────────┐  │
-│  │ OpenClaw Gateway                   │  │
-│  │ ws://127.0.0.1:18789              │  │
-│  │                                    │  │
-│  │ 🦞 BigDawg · Haiku 4.5  (router)  │  │
-│  │ 💻 Coder   · Opus 4.5   (engineer)│  │
-│  │ 🧠 Brain   · Opus 4.6   (strategy)│  │
-│  └────────────────────────────────────┘  │
-│                    │                      │
-│  Tailscale Serve   │                      │
-│  https://<hostname>.<tailnet>.ts.net     │
-└────────────────────┬─────────────────────┘
-                     │ Tailscale (encrypted)
-┌────────────────────┴─────────────────────┐
-│  Raspberry Pi · <pi-hostname>            │
-│  <pi-tailscale-ip>                       │
-│  ┌────────────────────────────────────┐  │
-│  │ clawpi-scout daemon                │  │
-│  │                                    │  │
-│  │ 🔍 Health monitor    (every 60s)   │  │
-│  │ 👁️ Web watchers      (every 5min)  │  │
-│  │ 📋 Morning briefing  (daily 8AM)   │  │
-│  │ 🔔 Telegram alerts   (on events)   │  │
-│  └────────────────────────────────────┘  │
-│                    │                      │
-│            @your_scout_bot               │
-│               (Telegram)                  │
-└──────────────────────────────────────────┘
+                    Tailscale mesh (encrypted)
+                             |
+         +-------------------+-------------------+
+         |                                       |
++--------+----------+               +-----------+-----------+
+|  OpenClaw Gateway  |               |   clawpi-scout        |
+|  (Pi or Mac Mini)  |  <-- ping --- |   Raspberry Pi        |
+|  port 18789        |               |                       |
++--------------------+               |   Health monitor      |
+                                     |   Web watchers        |
+                                     |   Morning briefing    |
+                                     |   GPIO dashboard      |
+                                     |        |              |
+                                     +--------+--------------+
+                                              |
+                                     +--------+--------+
+                                     |    Telegram     |
+                                     |   @your_bot    |
+                                     +-----------------+
 ```
+
+---
+
+## Quick start
+
+```bash
+# Clone on the Pi
+git clone https://github.com/BigDawg013/clawpi-scout.git ~/clawpi-scout
+cd ~/clawpi-scout
+
+# Install (creates venv + systemd service)
+bash scripts/install.sh
+
+# Configure
+cp config/scout.yaml.example config/scout.yaml
+nano config/scout.yaml   # Add gateway URL, Telegram bot token, chat ID
+
+# Start
+sudo systemctl start clawpi-scout
+
+# Install morning briefing cron (optional)
+bash scripts/install-cron.sh
+```
+
+See [docs/SETUP.md](docs/SETUP.md) for the full A-to-Z guide — from flashing the SD card to receiving your first alert.
+
+---
 
 ## Project structure
 
 ```
 clawpi-scout/
-├── README.md                   # You are here
-├── requirements.txt            # Python dependencies
 ├── config/
-│   ├── scout.yaml.example      # Config template (committed)
-│   └── scout.yaml              # Your config with secrets (gitignored)
+│   ├── scout.yaml.example        # Config template (committed, no secrets)
+│   └── scout.yaml                # Your config with secrets (gitignored)
+├── docs/
+│   ├── SETUP.md                  # Full setup guide
+│   └── WIRING.md                 # GPIO wiring diagrams + breadboard layout
 ├── scout/
-│   ├── __init__.py
-│   ├── main.py                 # Entry point — runs health + watchers
-│   ├── briefing.py             # Morning briefing — daily Telegram summary
+│   ├── main.py                   # Entry point — async daemon
+│   ├── briefing.py               # Morning briefing generator
 │   ├── health/
-│   │   ├── __init__.py
-│   │   └── monitor.py          # Gateway health checks
+│   │   └── monitor.py            # Gateway health checks (async)
 │   ├── watchers/
-│   │   ├── __init__.py
-│   │   └── watcher.py          # URL/API change detection
-│   └── alerts/
-│       ├── __init__.py
-│       └── telegram.py         # Direct Telegram Bot API alerting
+│   │   └── watcher.py            # URL/API change detection (async)
+│   ├── alerts/
+│   │   └── telegram.py           # Telegram Bot API alerting
+│   └── gpio/
+│       ├── dashboard.py          # Main GPIO coordinator
+│       ├── bar_graph.py          # 10-segment LED bar graph driver
+│       ├── seven_segment.py      # 4-digit 7-segment display driver
+│       ├── dot_matrix.py         # 8x8 matrix pattern definitions
+│       ├── shift_register.py     # 74HC595 bit-bang driver
+│       └── multiplex_thread.py   # Background thread (~1kHz refresh)
 ├── scripts/
-│   ├── install.sh              # One-command setup (venv + systemd)
-│   └── install-cron.sh         # Cron jobs (morning briefing)
-└── docs/
-    └── SETUP.md                # Full A-to-Z guide
+│   ├── install.sh                # One-command setup (venv + systemd)
+│   ├── install-cron.sh           # Cron job for morning briefing
+│   └── demo_displays.py         # Test all GPIO displays
+└── requirements.txt
 ```
 
-## Quick start
-
-```bash
-# On the Raspberry Pi
-git clone https://github.com/<your-username>/clawpi-scout.git
-cd clawpi-scout
-
-# Install daemon + systemd service
-bash scripts/install.sh
-
-# Configure
-cp config/scout.yaml.example config/scout.yaml
-nano config/scout.yaml          # Add your tokens and targets
-
-# Start
-sudo systemctl start clawpi-scout
-
-# Install morning briefing cron
-bash scripts/install-cron.sh
-```
+---
 
 ## Configuration
 
 All config lives in `config/scout.yaml` (gitignored — secrets stay on the Pi).
 
-| Section | Key fields | Description |
-|---------|-----------|-------------|
-| `gateway` | `url`, `health_interval`, `max_failures` | What to monitor, how often, when to alert |
-| `telegram` | `bot_token`, `chat_id` | Where alerts are sent |
-| `watchers` | `targets[]` | URLs/APIs to watch for changes |
-| `logging` | `level` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+```yaml
+gateway:
+  url: "http://<TAILSCALE_IP>:18789"   # OpenClaw gateway address
+  health_interval: 60                   # Seconds between health checks
+  timeout: 10                           # Seconds before check is "failed"
+  max_failures: 3                       # Consecutive failures before alert
 
-See [`config/scout.yaml.example`](config/scout.yaml.example) for full documentation.
+telegram:
+  bot_token: ""                         # From @BotFather
+  chat_id: ""                           # Your Telegram user/group ID
+
+gpio:
+  bar_graph: true                       # Enable LED bar graph
+  seven_segment: true                   # Enable 7-segment display
+  dot_matrix: true                      # Enable dot matrix display
+```
+
+See [`config/scout.yaml.example`](config/scout.yaml.example) for full documentation with all options.
+
+---
 
 ## How it works
 
-### Health monitor
+**Health monitor** — Runs as a systemd service. Every 60 seconds it pings the OpenClaw gateway over Tailscale. After 3 consecutive failures it fires a Telegram alert and triggers the buzzer alarm. On recovery it sends an all-clear message.
 
-Runs continuously as a systemd service. Every 60 seconds:
-1. HTTP GET to the OpenClaw gateway via Tailscale Serve
-2. If 3 consecutive checks fail → Telegram alert
-3. When gateway recovers → Telegram recovery message
-4. Cooldown prevents alert spam (5 min between repeats)
+**Web watchers** — Monitors configured URLs every 5 minutes. SHA-256 hashes each response. On change, sends a Telegram notification. First run establishes a baseline silently.
 
-### Web watchers
+**Morning briefing** — Cron job at 8 AM. Sends a Telegram summary with gateway status, CPU temperature, disk/memory usage, Tailscale connectivity, and watcher count.
 
-Monitors configured URLs every 5 minutes:
-1. Fetches each target URL
-2. SHA-256 hashes the response body
-3. Compares against previous hash
-4. If changed → Telegram notification with old/new hash
-5. First run establishes baseline (no alert)
+**GPIO dashboard** — The physical display updates in real time. LEDs show instant status. The bar graph tracks a rolling health score (0-10). The 7-segment shows uptime in HH:MM. The dot matrix shows a smiley face when healthy, an X when down, and blinks during alarms.
 
-### Morning briefing
-
-Cron job at 8:00 AM daily. Sends a Telegram summary:
-- Gateway status (online/offline)
-- Pi system vitals (CPU temp, disk, memory, load)
-- Tailscale connectivity
-- Watcher target count
-
-### Telegram alerts
-
-Independent from OpenClaw — uses the Telegram Bot API directly from the Pi. Works even when the Mac Mini is completely down.
+---
 
 ## Operations
 
-| Command | Description |
-|---------|-------------|
-| `sudo systemctl start clawpi-scout` | Start the daemon |
-| `sudo systemctl stop clawpi-scout` | Stop the daemon |
-| `sudo systemctl restart clawpi-scout` | Restart after config changes |
-| `sudo systemctl status clawpi-scout` | Check if running |
-| `journalctl -u clawpi-scout -f` | Follow live logs |
-| `python -m scout.briefing` | Send briefing now |
-| `tailscale status` | Check Tailscale connection |
+```bash
+sudo systemctl start clawpi-scout       # Start
+sudo systemctl stop clawpi-scout        # Stop
+sudo systemctl restart clawpi-scout     # Restart (after config changes)
+sudo systemctl status clawpi-scout      # Check status
+journalctl -u clawpi-scout -f           # Follow live logs
+python -m scout.briefing                # Send briefing now
+python scripts/demo_displays.py         # Test all GPIO displays
+tailscale status                        # Check Tailscale connection
+```
 
-## Full setup guide
+---
 
-See [docs/SETUP.md](docs/SETUP.md) for the complete A-to-Z guide — from flashing the SD card to a running scout.
+## Hardware
+
+**Required:**
+- Raspberry Pi 4 or 5 (any RAM)
+- MicroSD card (32 GB+)
+- Internet connection (Ethernet or WiFi)
+
+**For the GPIO dashboard (optional):**
+- 830-hole breadboard + GPIO T-cobbler
+- 3x LEDs (green, red, yellow) + 220 ohm resistors
+- Active buzzer, push button
+- DHT11 temperature/humidity sensor
+- LCD1602 with I2C backpack (address 0x27)
+- 10-segment LED bar graph + 10x 220 ohm resistors
+- 3x 74HC595 shift registers (daisy-chained)
+- 4-digit common-cathode 7-segment display
+- 8x8 LED dot matrix
+- Jumper wires (M-M, M-F)
+
+All components come from the [Freenove FNK0020 kit](https://github.com/Freenove/Freenove_Ultimate_Starter_Kit_for_Raspberry_Pi).
+
+---
 
 ## Related
 
-- [openclaw-setup](https://github.com/your-username/openclaw-setup) — The multi-agent AI system this scout monitors
-- [OpenClaw](https://openclaw.ai) — The platform powering the agents
+- **[clawpi-ai](https://github.com/BigDawg013/clawpi-ai)** — OpenClaw on a Raspberry Pi (the gateway this scout monitors)
+- **[OpenClaw](https://openclaw.ai)** — The multi-agent AI platform
+
+---
+
+## License
+
+[MIT](LICENSE)

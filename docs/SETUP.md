@@ -1,6 +1,6 @@
-# Setup Guide — A to Z
+# Setup Guide — clawpi-scout
 
-Complete guide to setting up a Raspberry Pi as a scout node for OpenClaw. Covers everything from unboxing to a running scout daemon.
+Complete guide to setting up a Raspberry Pi as a scout node for [OpenClaw](https://openclaw.ai). Covers everything from unboxing to receiving your first Telegram alert.
 
 ---
 
@@ -9,18 +9,17 @@ Complete guide to setting up a Raspberry Pi as a scout node for OpenClaw. Covers
 | Item | Details |
 |------|---------|
 | Raspberry Pi | Pi 4 or Pi 5 (any RAM) |
-| MicroSD card | 32GB+ recommended |
+| MicroSD card | 32 GB+ recommended |
 | Power supply | USB-C, 5V/3A minimum |
-| Ethernet or Wi-Fi | For initial setup and ongoing connectivity |
-| Mac Mini | Running OpenClaw with the gateway active |
+| Ethernet or WiFi | For initial setup and ongoing connectivity |
+| OpenClaw gateway | Running on another Pi or Mac ([clawpi-ai](https://github.com/BigDawg013/clawpi-ai)) |
+| Telegram bot token | From [@BotFather](https://t.me/BotFather) |
 
 ---
 
 ## Phase 1 — Flash the OS
 
 ### 1.1 Download Raspberry Pi Imager
-
-On your main computer:
 
 ```bash
 # macOS
@@ -33,55 +32,46 @@ brew install --cask raspberry-pi-imager
 
 1. Insert the MicroSD card into your computer
 2. Open Raspberry Pi Imager
-3. Choose OS → **Raspberry Pi OS (64-bit)** — Debian Bookworm/Trixie
-4. Choose storage → select your MicroSD card
+3. Choose OS: **Raspberry Pi OS Lite (64-bit)** — no desktop needed
+4. Choose storage: select your MicroSD card
 5. Click the **gear icon** for advanced options:
-   - **Set hostname**: `<pi-hostname>`
+   - **Set hostname** (e.g. `clawpiscout`)
    - **Enable SSH**: Use password authentication
-   - **Set username**: `<your-username>` (or your preferred username)
-   - **Set password**: choose a strong password
-   - **Configure Wi-Fi**: enter your SSID and password (if not using ethernet)
+   - **Set username and password**
+   - **Configure WiFi** (if not using ethernet)
    - **Set locale**: your timezone
 6. Click **Write** and wait for it to finish
 
 ### 1.3 First boot
 
 1. Insert the MicroSD card into the Pi
-2. Connect ethernet (recommended) or rely on Wi-Fi configured above
-3. Connect power — the Pi will boot automatically
+2. Connect ethernet (recommended) or rely on WiFi configured above
+3. Connect power — the Pi boots automatically
 4. Wait ~2 minutes for first boot to complete
 
 ---
 
 ## Phase 2 — Connect via SSH
 
-### 2.1 Find the Pi on your network
-
-From your main computer:
+### 2.1 Find the Pi
 
 ```bash
-# Option A — if mDNS works on your network
-ping <pi-hostname>.local
+# Option A — mDNS (if your network supports it)
+ping clawpiscout.local
 
-# Option B — scan the network (macOS)
+# Option B — scan your network (macOS)
 arp -a | grep -i "raspberry\|dc:a6\|e4:5f\|28:cd\|2c:cf\|d8:3a"
 
-# Option C — use your router's admin page to find the IP
+# Option C — check your router's admin page
 ```
 
 ### 2.2 SSH in
 
 ```bash
 ssh <your-username>@<PI_IP_ADDRESS>
-# Example: ssh <your-username>@<PI_LOCAL_IP>
 ```
 
-Accept the fingerprint on first connection. You should see:
-
-```
-Linux <pi-hostname> 6.12.x+rpt-rpi-v8 #1 SMP PREEMPT Debian ... aarch64
-<your-username>@<pi-hostname>:~$
-```
+Accept the fingerprint on first connection.
 
 ### 2.3 Update the system
 
@@ -93,7 +83,7 @@ sudo apt update && sudo apt upgrade -y
 
 ## Phase 3 — Install Tailscale
 
-Tailscale creates a private network (tailnet) between the Pi and Mac Mini so they can reach each other from anywhere.
+Tailscale creates an encrypted mesh network between the scout Pi and your OpenClaw gateway so they can reach each other from anywhere.
 
 ### 3.1 Install
 
@@ -107,102 +97,145 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 ```
 
-This will print a URL — open it in your browser and sign in with the same account used on your Mac Mini.
+This prints a URL — open it in your browser and sign in with the same Tailscale account used on your gateway machine.
 
-### 3.3 Verify connection
+### 3.3 Verify
 
 ```bash
 tailscale status
 ```
 
-You should see both devices:
-
-```
-100.x.x.x  <pi-hostname>         you@  linux  -
-100.x.x.x  <mac-mini-hostname>  you@  macOS  idle
-```
+You should see both devices listed. Note the gateway's Tailscale IP (e.g. `100.x.x.x`).
 
 ### 3.4 Test connectivity
 
 ```bash
-# Ping the Mac Mini over Tailscale
-ping -c 3 <MAC_MINI_TAILSCALE_IP>
-```
+# Ping the gateway machine
+ping -c 3 <GATEWAY_TAILSCALE_IP>
 
-You can now SSH over Tailscale from anywhere:
-
-```bash
-ssh <your-username>@<CLAWPI_TAILSCALE_IP>
+# Test the OpenClaw gateway directly
+curl -s http://<GATEWAY_TAILSCALE_IP>:18789
 ```
 
 ---
 
-## Phase 4 — Install the Scout
+## Phase 4 — Install the scout
 
-### 4.1 Clone the repo
+### 4.1 Install system dependencies
 
 ```bash
-cd ~
-git clone https://github.com/<your-username>/<pi-hostname>-scout.git
-cd <pi-hostname>-scout
+sudo apt install -y git python3-pip python3-venv i2c-tools python3-lgpio
 ```
 
-### 4.2 Run the install script
+### 4.2 Enable I2C (for LCD display)
+
+```bash
+sudo raspi-config nonint do_i2c 0
+sudo modprobe i2c-dev
+```
+
+### 4.3 Clone the repo
+
+```bash
+git clone https://github.com/BigDawg013/clawpi-scout.git ~/clawpi-scout
+cd ~/clawpi-scout
+```
+
+### 4.4 Run the install script
 
 ```bash
 bash scripts/install.sh
 ```
 
-This will:
-- Create a Python virtual environment
-- Install dependencies
-- Copy the systemd service file
-- Enable the service to start on boot
+This creates a Python virtual environment, installs all dependencies, and sets up a systemd service.
 
-### 4.3 Configure
+### 4.5 Configure
 
 ```bash
+cp config/scout.yaml.example config/scout.yaml
 nano config/scout.yaml
 ```
 
 Fill in:
-- **gateway_url**: `ws://<MAC_MINI_TAILSCALE_IP>:18789` (your Mac Mini's Tailscale IP)
-- **telegram_bot_token**: your Telegram bot token
-- **telegram_chat_id**: your Telegram chat ID
-- **watch_urls**: URLs you want to monitor
+- `gateway.url` — your gateway's Tailscale IP and port (e.g. `http://100.x.x.x:18789`)
+- `telegram.bot_token` — from [@BotFather](https://t.me/BotFather)
+- `telegram.chat_id` — your Telegram user ID (message [@userinfobot](https://t.me/userinfobot) to find it)
 
-### 4.4 Start the scout
-
-```bash
-sudo systemctl start <pi-hostname>-scout
-sudo systemctl status <pi-hostname>-scout
-```
-
-### 4.5 Check logs
+### 4.6 Start the scout
 
 ```bash
-journalctl -u <pi-hostname>-scout -f
+sudo systemctl start clawpi-scout
+sudo systemctl status clawpi-scout
 ```
+
+### 4.7 Check logs
+
+```bash
+journalctl -u clawpi-scout -f
+```
+
+You should see health checks running every 60 seconds.
 
 ---
 
-## Phase 5 — Verify everything works
+## Phase 5 — Verify everything
 
-### 5.1 Health check
-
-The scout should immediately start pinging the gateway. Check logs:
+### 5.1 Health check working
 
 ```bash
-journalctl -u <pi-hostname>-scout --since "1 minute ago"
+journalctl -u clawpi-scout --since "2 minutes ago" --no-pager
 ```
 
-### 5.2 Test Telegram alert
+Look for `health check ok` lines.
 
-Temporarily stop the OpenClaw gateway on your Mac Mini and verify the Pi sends a Telegram alert within 60 seconds.
+### 5.2 Test the alert pipeline
 
-### 5.3 Test web watcher
+Temporarily stop the OpenClaw gateway on the other machine:
 
-Add a test URL to `config/scout.yaml` and verify the scout detects changes.
+```bash
+# On the gateway machine (e.g. clawpi)
+systemctl --user stop openclaw-gateway
+```
+
+Within 3 minutes the scout should send a Telegram alert: "ALERT: OpenClaw gateway unreachable — 3 consecutive failures."
+
+Restart the gateway:
+
+```bash
+systemctl --user start openclaw-gateway
+```
+
+The scout should send a recovery message: "Gateway RECOVERED — back online."
+
+### 5.3 Install morning briefing (optional)
+
+```bash
+bash scripts/install-cron.sh
+```
+
+This sends a daily Telegram summary at 8 AM with gateway status, CPU temp, disk, memory, and Tailscale connectivity.
+
+---
+
+## GPIO dashboard (optional)
+
+If you have the hardware, see [docs/WIRING.md](WIRING.md) for complete wiring diagrams covering all 10 components.
+
+To test the displays without wiring the full dashboard:
+
+```bash
+cd ~/clawpi-scout
+python scripts/demo_displays.py
+```
+
+To disable displays you haven't wired yet, edit `config/scout.yaml`:
+
+```yaml
+gpio:
+  bar_graph: false
+  seven_segment: false
+  dot_matrix: false
+```
 
 ---
 
@@ -210,33 +243,58 @@ Add a test URL to `config/scout.yaml` and verify the scout detects changes.
 
 | Command | What it does |
 |---------|-------------|
-| `sudo systemctl start <pi-hostname>-scout` | Start the scout |
-| `sudo systemctl stop <pi-hostname>-scout` | Stop the scout |
-| `sudo systemctl restart <pi-hostname>-scout` | Restart after config changes |
-| `sudo systemctl status <pi-hostname>-scout` | Check if running |
-| `journalctl -u <pi-hostname>-scout -f` | Follow live logs |
+| `sudo systemctl start clawpi-scout` | Start the scout |
+| `sudo systemctl stop clawpi-scout` | Stop the scout |
+| `sudo systemctl restart clawpi-scout` | Restart after config changes |
+| `sudo systemctl status clawpi-scout` | Check if running |
+| `journalctl -u clawpi-scout -f` | Follow live logs |
+| `python -m scout.briefing` | Send briefing now |
+| `python scripts/demo_displays.py` | Test GPIO displays |
 | `tailscale status` | Check Tailscale connection |
-| `tailscale ping <mac-mini-hostname>` | Ping Mac Mini via Tailscale |
 
 ---
 
 ## Troubleshooting
 
-### Pi can't reach Mac Mini
+### Scout can't reach the gateway
+
 ```bash
-tailscale status               # Both devices listed?
-tailscale ping <mac-mini-hostname>   # Direct connectivity?
-curl http://<MAC_MINI_TAILSCALE_IP>:18789  # Gateway responding?
+tailscale status                              # Both devices listed?
+tailscale ping <gateway-hostname>             # Direct connectivity?
+curl http://<GATEWAY_TAILSCALE_IP>:18789      # Gateway responding?
 ```
 
 ### Scout won't start
+
 ```bash
-journalctl -u <pi-hostname>-scout --no-pager -n 50   # Check error logs
-python3 -m scout.main                          # Run manually to see errors
+journalctl -u clawpi-scout --no-pager -n 50  # Check error logs
+cd ~/clawpi-scout && .venv/bin/python -m scout.main  # Run manually
 ```
 
 ### Telegram alerts not sending
+
 ```bash
 # Test the bot token directly
-curl -s "https://api.telegram.org/bot<BOT_TOKEN>/getMe"
+curl -s "https://api.telegram.org/bot<TOKEN>/getMe"
+
+# Check for 401 errors in logs
+journalctl -u clawpi-scout | grep "telegram"
 ```
+
+### LCD not working
+
+```bash
+sudo i2cdetect -y 1                          # Should show address 0x27
+ls /dev/i2c-*                                 # I2C device exists?
+sudo raspi-config nonint do_i2c 0             # Enable I2C if missing
+```
+
+### Terminal issues over SSH
+
+If you see `Error opening terminal: xterm-ghostty` or similar:
+
+```bash
+export TERM=xterm
+```
+
+Add to `~/.bashrc` to make it permanent.
